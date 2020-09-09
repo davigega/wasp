@@ -1,0 +1,23 @@
+[package]
+name = "webrtc-audio-publishing"
+version = "0.1.0"
+authors = ["Sebastian Dröge <sebastian@centricular.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+gst = { version = "0.16", package = "gstreamer" }
+gst-webrtc = { version = "0.16", package = "gstreamer-webrtc" }
+glib = "0.10"
+futures = "0.3"
+actix-rt = "1"
+actix-web = "2"
+actix-web-actors = "2"
+actix-service = "1"
+log = "0.4"
+env_logger = "0.7"
+serde = "1"
+serde_json = "1"
+structopt = "0.3"
