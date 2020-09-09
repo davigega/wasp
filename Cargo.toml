@@ -3,8 +3,7 @@ name = "webrtc-audio-publishing"
 version = "0.1.0"
 authors = ["Sebastian Dröge <sebastian@centricular.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
 
 [dependencies]
 anyhow = "1"
@@ -16,8 +15,11 @@ actix-rt = "1"
 actix-web = "2"
 actix-web-actors = "2"
 actix-service = "1"
+actix-tls = { version = "2", features = ["nativetls"] }
 log = "0.4"
 env_logger = "0.7"
 serde = "1"
 serde_json = "1"
 structopt = "0.3"
+tokio = "0.2"
+async-tungstenite = { version = "0.8", features = ["tokio-runtime", "tokio-native-tls"] }
