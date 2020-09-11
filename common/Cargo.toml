@@ -1,0 +1,6 @@
+[package]
+name = "webrtc-audio-publishing"
+version = "0.1.0"
+authors = ["Sebastian Dröge <sebastian@centricular.com>"]
+edition = "2018"
+license = "MIT"
