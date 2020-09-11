@@ -11,12 +11,12 @@ gst = { version = "0.16", package = "gstreamer" }
 gst-webrtc = { version = "0.16", package = "gstreamer-webrtc" }
 glib = "0.10"
 futures = "0.3"
+actix = "0.10"
 actix-rt = "1"
-actix-web = { version = "2", features = ["openssl"] }
-actix-web-actors = "2"
+actix-web = { version = "3", features = ["openssl"] }
+actix-web-actors = "3"
 actix-service = "1"
-actix-tls = { version = "2", features = ["openssl"] }
-actix-files = "0.2"
+actix-files = "0.3"
 openssl = "0.10"
 log = "0.4"
 env_logger = "0.7"
