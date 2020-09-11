@@ -12,6 +12,7 @@ use actix_files::NamedFile;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 
+/// Serve `index.html` for path `/`.
 async fn index(cfg: web::Data<Config>) -> Result<NamedFile, actix_web::Error> {
     let full_path = cfg.static_files.join("index.html");
 
@@ -20,6 +21,7 @@ async fn index(cfg: web::Data<Config>) -> Result<NamedFile, actix_web::Error> {
     Ok(file.use_last_modified(true))
 }
 
+/// Create Subscriber/Publisher WebSocket actors.
 async fn ws(
     cfg: web::Data<Config>,
     rooms: web::Data<Addr<Rooms>>,
@@ -42,6 +44,7 @@ async fn ws(
     }
 }
 
+/// Serve static files (`index.html`, JavaScript, CSS, etc).
 async fn static_file(
     cfg: web::Data<Config>,
     req: HttpRequest,
@@ -54,6 +57,7 @@ async fn static_file(
     Ok(file.use_last_modified(true))
 }
 
+/// Start the server based on the passed `Config`.
 pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
     let rooms = Rooms::new().start();
 
@@ -62,7 +66,7 @@ pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
 
     let server = HttpServer::new(move || {
         App::new()
-            .app_data(cfg_clone.clone())
+            .data(cfg_clone.clone())
             .data(rooms.clone())
             .route("/", web::get().to(index))
             .route("/ws/{mode:(publish|subscribe)}", web::get().to(ws))
