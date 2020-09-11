@@ -16,6 +16,10 @@ pub struct Config {
     #[structopt(short, long, default_value = "8080")]
     pub port: u16,
 
+    /// Directory with static HTML/CSS/JS files.
+    #[structopt(short, long)]
+    pub static_files: PathBuf,
+
     /// Use TLS.
     #[structopt(short = "t", long)]
     pub use_tls: bool,

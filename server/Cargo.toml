@@ -16,6 +16,7 @@ actix-web = { version = "2", features = ["openssl"] }
 actix-web-actors = "2"
 actix-service = "1"
 actix-tls = { version = "2", features = ["openssl"] }
+actix-files = "0.2"
 openssl = "0.10"
 log = "0.4"
 env_logger = "0.7"
