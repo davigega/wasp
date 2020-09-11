@@ -3,7 +3,10 @@
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
 mod config;
+mod publisher;
+mod rooms;
 mod server;
+mod subscriber;
 
 use anyhow::Error;
 
