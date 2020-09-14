@@ -7,11 +7,11 @@ use crate::rooms::{Room, Rooms};
 
 use std::sync::{Arc, Mutex};
 
-use actix::{Actor, Addr, Handler, Message, StreamHandler};
+use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
 
 use actix_web_actors::ws;
 
-use log::debug;
+use log::{debug, trace};
 
 /// Actor that represents a WebRTC subscriber.
 #[derive(Debug)]
@@ -34,6 +34,13 @@ impl Subscriber {
 
 impl Actor for Subscriber {
     type Context = ws::WebsocketContext<Self>;
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        // Drop reference to the joined room, if any
+        self.room.lock().unwrap().take();
+
+        trace!("Subscriber {:?} stopped", ctx.address());
+    }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Subscriber {
@@ -59,6 +66,9 @@ impl Handler<RoomDeletedMessage> for Subscriber {
         _ctx: &mut ws::WebsocketContext<Self>,
     ) -> Self::Result {
         debug!("Room deleted");
+
+        // Drop reference to the joined room
+        self.room.lock().unwrap().take();
 
         // TODO
     }

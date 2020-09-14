@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, MessageResult};
 use anyhow::{bail, Error};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 use crate::publisher::{self, Publisher};
 use crate::subscriber::{self, Subscriber};
@@ -218,32 +218,37 @@ impl Room {
 
 impl Actor for Room {
     type Context = Context<Self>;
+
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        trace!("Room {:?} stopped", self.id);
+    }
 }
 
 impl Handler<DeleteRoomMessage> for Room {
     type Result = Result<(), Error>;
 
     fn handle(&mut self, msg: DeleteRoomMessage, ctx: &mut Context<Self>) -> Self::Result {
-        if self.publisher == msg.publisher {
-            info!("Deleting room {:?}", self.id);
-
-            {
-                let subscribers = self.subscribers.lock().unwrap();
-                for subscriber in &*subscribers {
-                    subscriber.do_send(subscriber::RoomDeletedMessage);
-                }
-            }
-            self.rooms.do_send(RoomDeletedMessage { room_id: self.id });
-
-            ctx.stop();
-            Ok(())
-        } else {
+        if self.publisher != msg.publisher {
             error!(
                 "Tried to delete room {:?} from wrong publisher {:?}",
                 self.id, msg.publisher
             );
-            bail!("Deleting room {:?} not permitted", self.id)
+            bail!("Deleting room {:?} not permitted", self.id);
         }
+
+        info!("Deleting room {:?}", self.id);
+
+        {
+            let mut subscribers = self.subscribers.lock().unwrap();
+            for subscriber in subscribers.drain() {
+                subscriber.do_send(subscriber::RoomDeletedMessage);
+            }
+        }
+        self.rooms.do_send(RoomDeletedMessage { room_id: self.id });
+
+        ctx.stop();
+
+        Ok(())
     }
 }
 
@@ -276,12 +281,24 @@ impl Handler<LeaveRoomMessage> for Room {
             self.id, msg.subscriber
         );
 
+        {
+            let mut subscribers = self.subscribers.lock().unwrap();
+            if !subscribers.remove(&msg.subscriber) {
+                error!(
+                    "Room {:?} didn't have subscriber {:?}",
+                    self.id, msg.subscriber
+                );
+                bail!(
+                    "Room {:?} didn't have subscriber {:?}",
+                    self.id,
+                    msg.subscriber
+                );
+            }
+        }
+
         self.publisher.do_send(publisher::LeavingSubscriberMessage {
             subscriber: msg.subscriber.clone(),
         });
-
-        let mut subscribers = self.subscribers.lock().unwrap();
-        subscribers.remove(&msg.subscriber);
 
         Ok(())
     }

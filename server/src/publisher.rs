@@ -10,11 +10,11 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
 
-use actix::{Actor, Addr, Handler, Message, StreamHandler};
+use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
 
 use actix_web_actors::ws;
 
-use log::debug;
+use log::{debug, trace};
 
 /// Actor that represents a WebRTC publisher.
 #[derive(Debug)]
@@ -37,6 +37,13 @@ impl Publisher {
 
 impl Actor for Publisher {
     type Context = ws::WebsocketContext<Self>;
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        // Drop reference to the joined room, if any
+        self.room.lock().unwrap().take();
+
+        trace!("Publisher {:?} stopped", ctx.address());
+    }
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Publisher {
