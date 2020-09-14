@@ -29,4 +29,11 @@ pub struct Config {
     /// Certificate private key file.
     #[structopt(short = "k", long, required_if("use_tls", "true"))]
     pub key_file: Option<PathBuf>,
+
+    /// TURN server to use, e.g. turn://user:password@foo.bar.com:3478.
+    #[structopt(long)]
+    pub turn_server: Option<String>,
+    /// TURN server to use, e.g. stun://stun.l.google.com:19302.
+    #[structopt(long)]
+    pub stun_server: Option<String>,
 }
