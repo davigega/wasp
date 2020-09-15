@@ -14,7 +14,7 @@ use crate::subscriber::{self, Subscriber};
 
 /// Unique identifier for a `Room`.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
-pub struct RoomId(u64);
+pub struct RoomId(uuid::Uuid);
 
 /// Message to create a new `Room` for a `Publisher`.
 #[derive(Debug)]
@@ -188,16 +188,6 @@ pub struct Room {
 }
 
 impl Room {
-    /// Returns a next valid `RoomId`.
-    fn next_room_id() -> RoomId {
-        // XXX: We assume that no more than 2**64 rooms are ever created
-        use std::sync::atomic::{self, AtomicU64};
-
-        static ROOM_ID: AtomicU64 = AtomicU64::new(0);
-
-        RoomId(ROOM_ID.fetch_add(1, atomic::Ordering::Relaxed))
-    }
-
     /// Create a new `Room`.
     fn new(
         rooms: Addr<Rooms>,
@@ -207,7 +197,7 @@ impl Room {
     ) -> Self {
         Room {
             rooms,
-            id: Self::next_room_id(),
+            id: RoomId(uuid::Uuid::new_v4()),
             name,
             description,
             publisher,

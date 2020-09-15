@@ -1011,6 +1011,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "gstreamer-app"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "330e3e40c0e27680e52e38c599353dddfb14c373a148dd9154243f7cf92ba3c2"
+dependencies = [
+ "bitflags",
+ "futures-core",
+ "futures-sink",
+ "glib",
+ "glib-sys",
+ "gobject-sys",
+ "gstreamer",
+ "gstreamer-app-sys",
+ "gstreamer-base",
+ "gstreamer-sys",
+ "libc",
+ "once_cell",
+]
+
+[[package]]
+name = "gstreamer-app-sys"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "813f64275c9e7b33b828b9efcf9dfa64b95996766d4de996e84363ac65b87e3d"
+dependencies = [
+ "glib-sys",
+ "gstreamer-base-sys",
+ "gstreamer-sys",
+ "libc",
+ "system-deps",
+]
+
+[[package]]
+name = "gstreamer-base"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "082f83c11a9d568e94e3a29d9fb22bf86dda44becfd4ba1d18446766b678f07c"
+dependencies = [
+ "bitflags",
+ "glib",
+ "glib-sys",
+ "gobject-sys",
+ "gstreamer",
+ "gstreamer-base-sys",
+ "gstreamer-sys",
+ "libc",
+]
+
+[[package]]
+name = "gstreamer-base-sys"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4b7b6dc2d6e160a1ae28612f602bd500b3fa474ce90bf6bb2f08072682beef5"
+dependencies = [
+ "glib-sys",
+ "gobject-sys",
+ "gstreamer-sys",
+ "libc",
+ "system-deps",
+]
+
+[[package]]
 name = "gstreamer-sdp"
 version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2314,6 +2376,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05e42f7c18b8f902290b009cde6d651262f956c98bc51bca4cd1d511c9cd85c7"
 
 [[package]]
+name = "uuid"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fde2f6a4bea1d6e007c4ad38c6839fa71cbb63b6dbf5b595aa38dc9b1093c11"
+dependencies = [
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "v_escape"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2451,12 +2523,17 @@ dependencies = [
  "serde_json",
  "structopt",
  "tokio",
+ "uuid",
  "webrtc-audio-publishing",
 ]
 
 [[package]]
 name = "webrtc-audio-publishing"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "uuid",
+]
 
 [[package]]
 name = "webrtc-audio-server"
@@ -2473,12 +2550,14 @@ dependencies = [
  "futures",
  "glib",
  "gstreamer",
+ "gstreamer-app",
  "gstreamer-webrtc",
  "log",
  "openssl",
  "serde",
  "serde_json",
  "structopt",
+ "uuid",
  "webrtc-audio-publishing",
 ]
 

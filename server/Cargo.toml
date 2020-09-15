@@ -23,4 +23,5 @@ env_logger = "0.7"
 serde = "1"
 serde_json = "1"
 structopt = "0.3"
+uuid = { version = "0.8", features = ["v4"] }
 webrtc-audio-publishing = { path = "../common" }
