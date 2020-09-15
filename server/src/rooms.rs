@@ -3,6 +3,7 @@
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::sync::Mutex;
 
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, MessageResult};
@@ -14,7 +15,13 @@ use crate::subscriber::{self, Subscriber};
 
 /// Unique identifier for a `Room`.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
-pub struct RoomId(uuid::Uuid);
+pub struct RoomId(pub uuid::Uuid);
+
+impl fmt::Display for RoomId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.to_hyphenated_ref())
+    }
+}
 
 /// Message to create a new `Room` for a `Publisher`.
 #[derive(Debug)]
@@ -25,7 +32,7 @@ pub struct CreateRoomMessage {
 }
 
 impl Message for CreateRoomMessage {
-    type Result = Result<Addr<Room>, Error>;
+    type Result = Result<(Addr<Room>, RoomId), Error>;
 }
 
 /// Message to find an existing `Room`.
@@ -76,7 +83,7 @@ impl Actor for Rooms {
 }
 
 impl Handler<CreateRoomMessage> for Rooms {
-    type Result = Result<Addr<Room>, Error>;
+    type Result = Result<(Addr<Room>, RoomId), Error>;
 
     fn handle(&mut self, msg: CreateRoomMessage, ctx: &mut Context<Self>) -> Self::Result {
         info!("Creating new room for message {:?}", msg);
@@ -86,12 +93,12 @@ impl Handler<CreateRoomMessage> for Rooms {
         let room = Room::new(ctx.address(), msg.name, msg.description, msg.publisher);
         let room_id = room.id;
 
-        info!("Created new room {:?}", room_id);
+        info!("Created new room {}", room_id);
 
         let room_addr = room.start();
         rooms.insert(room_id, room_addr.clone());
 
-        Ok(room_addr)
+        Ok((room_addr, room_id))
     }
 }
 
@@ -99,7 +106,7 @@ impl Handler<FindRoomMessage> for Rooms {
     type Result = Option<Addr<Room>>;
 
     fn handle(&mut self, msg: FindRoomMessage, _ctx: &mut Context<Self>) -> Self::Result {
-        debug!("Finding room {:?}", msg.room_id);
+        debug!("Finding room {}", msg.room_id);
 
         let rooms = self.rooms.lock().unwrap();
         rooms.get(&msg.room_id).cloned()
@@ -122,7 +129,7 @@ impl Handler<RoomDeletedMessage> for Rooms {
     fn handle(&mut self, msg: RoomDeletedMessage, _ctx: &mut Context<Self>) -> Self::Result {
         let mut rooms = self.rooms.lock().unwrap();
 
-        info!("Room {:?} destroyed", msg.room_id);
+        info!("Room {} destroyed", msg.room_id);
 
         rooms.remove(&msg.room_id).expect("Room not found");
     }
