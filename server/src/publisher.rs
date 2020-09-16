@@ -6,12 +6,12 @@ use crate::config::Config;
 use crate::rooms::{Room, Rooms};
 use crate::subscriber::Subscriber;
 
+use anyhow::{format_err, Error};
+
 use std::sync::{Arc, Mutex};
 
-use anyhow::Error;
-
-use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
-
+use actix::{Actor, Addr, Handler, Message, StreamHandler, WeakAddr};
+use actix_web::dev::ConnectionInfo;
 use actix_web_actors::ws;
 
 use log::{debug, trace};
@@ -20,29 +20,41 @@ use log::{debug, trace};
 #[derive(Debug)]
 pub struct Publisher {
     cfg: Arc<Config>,
-    rooms: Addr<Rooms>,
+    rooms: WeakAddr<Rooms>,
+    remote_addr: String,
     room: Mutex<Option<Addr<Room>>>,
 }
 
 impl Publisher {
     /// Create a new `Publisher` actor.
-    pub fn new(cfg: Arc<Config>, rooms: Addr<Rooms>) -> Self {
-        Publisher {
+    pub fn new(
+        cfg: Arc<Config>,
+        rooms: Addr<Rooms>,
+        connection_info: &ConnectionInfo,
+    ) -> Result<Self, Error> {
+        debug!("Creating new publisher {:?}", connection_info);
+
+        let remote_addr = connection_info
+            .realip_remote_addr()
+            .ok_or_else(|| format_err!("WebSocket connection without remote address"))?;
+
+        Ok(Publisher {
             cfg,
-            rooms,
+            rooms: rooms.downgrade(),
+            remote_addr: String::from(remote_addr),
             room: Mutex::new(None),
-        }
+        })
     }
 }
 
 impl Actor for Publisher {
     type Context = ws::WebsocketContext<Self>;
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
         // Drop reference to the joined room, if any
         self.room.lock().unwrap().take();
 
-        trace!("Publisher {:?} stopped", ctx.address());
+        trace!("Publisher {} stopped", self.remote_addr);
     }
 }
 

@@ -12,6 +12,8 @@ use actix_files::NamedFile;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use actix_web_actors::ws;
 
+use log::error;
+
 /// Serve `index.html` for path `/`.
 async fn index(cfg: web::Data<Config>) -> Result<NamedFile, actix_web::Error> {
     let full_path = cfg.static_files.join("index.html");
@@ -30,16 +32,32 @@ async fn ws(
     stream: web::Payload,
 ) -> impl Responder {
     match path.as_str() {
-        "publish" => ws::start(
-            Publisher::new(cfg.into_inner(), rooms.as_ref().clone()),
-            &req,
-            stream,
-        ),
-        "subscribe" => ws::start(
-            Subscriber::new(cfg.into_inner(), rooms.as_ref().clone()),
-            &req,
-            stream,
-        ),
+        "publish" => {
+            let publisher = Publisher::new(
+                cfg.into_inner(),
+                rooms.as_ref().clone(),
+                &req.connection_info(),
+            )
+            .map_err(|err| {
+                error!("Failed to create publisher: {}", err);
+                HttpResponse::InternalServerError()
+            })?;
+
+            ws::start(publisher, &req, stream)
+        }
+        "subscribe" => {
+            let subscriber = Subscriber::new(
+                cfg.into_inner(),
+                rooms.as_ref().clone(),
+                &req.connection_info(),
+            )
+            .map_err(|err| {
+                error!("Failed to create subscriber: {}", err);
+                HttpResponse::InternalServerError()
+            })?;
+
+            ws::start(subscriber, &req, stream)
+        }
         _ => Ok(HttpResponse::NotFound().finish()),
     }
 }

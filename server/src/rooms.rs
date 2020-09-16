@@ -6,7 +6,9 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::Mutex;
 
-use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, MessageResult};
+use actix::{
+    Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, MessageResult, WeakAddr,
+};
 use anyhow::{bail, Error};
 use log::{debug, error, info, trace};
 
@@ -188,7 +190,7 @@ pub struct Room {
     name: String,
     description: Option<String>,
 
-    rooms: Addr<Rooms>,
+    rooms: WeakAddr<Rooms>,
 
     publisher: Addr<Publisher>,
     subscribers: Mutex<HashSet<Addr<Subscriber>>>,
@@ -203,7 +205,7 @@ impl Room {
         publisher: Addr<Publisher>,
     ) -> Self {
         Room {
-            rooms,
+            rooms: rooms.downgrade(),
             id: RoomId(uuid::Uuid::new_v4()),
             name,
             description,
@@ -241,7 +243,10 @@ impl Handler<DeleteRoomMessage> for Room {
                 subscriber.do_send(subscriber::RoomDeletedMessage);
             }
         }
-        self.rooms.do_send(RoomDeletedMessage { room_id: self.id });
+
+        if let Some(rooms) = self.rooms.upgrade() {
+            rooms.do_send(RoomDeletedMessage { room_id: self.id });
+        }
 
         ctx.stop();
 

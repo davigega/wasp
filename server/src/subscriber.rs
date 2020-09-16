@@ -5,10 +5,12 @@
 use crate::config::Config;
 use crate::rooms::{Room, Rooms};
 
+use anyhow::{format_err, Error};
+
 use std::sync::{Arc, Mutex};
 
-use actix::{Actor, Addr, AsyncContext, Handler, Message, StreamHandler};
-
+use actix::{Actor, Addr, Handler, Message, StreamHandler, WeakAddr};
+use actix_web::dev::ConnectionInfo;
 use actix_web_actors::ws;
 
 use log::{debug, trace};
@@ -17,29 +19,41 @@ use log::{debug, trace};
 #[derive(Debug)]
 pub struct Subscriber {
     cfg: Arc<Config>,
-    rooms: Addr<Rooms>,
-    room: Mutex<Option<Addr<Room>>>,
+    rooms: WeakAddr<Rooms>,
+    remote_addr: String,
+    room: Mutex<Option<WeakAddr<Room>>>,
 }
 
 impl Subscriber {
     /// Create a new `Subscriber` actor.
-    pub fn new(cfg: Arc<Config>, rooms: Addr<Rooms>) -> Self {
-        Subscriber {
+    pub fn new(
+        cfg: Arc<Config>,
+        rooms: Addr<Rooms>,
+        connection_info: &ConnectionInfo,
+    ) -> Result<Self, Error> {
+        debug!("Creating new subscriber {:?}", connection_info);
+
+        let remote_addr = connection_info
+            .realip_remote_addr()
+            .ok_or_else(|| format_err!("WebSocket connection without remote address"))?;
+
+        Ok(Subscriber {
             cfg,
-            rooms,
+            rooms: rooms.downgrade(),
+            remote_addr: String::from(remote_addr),
             room: Mutex::new(None),
-        }
+        })
     }
 }
 
 impl Actor for Subscriber {
     type Context = ws::WebsocketContext<Self>;
 
-    fn stopped(&mut self, ctx: &mut Self::Context) {
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
         // Drop reference to the joined room, if any
         self.room.lock().unwrap().take();
 
-        trace!("Subscriber {:?} stopped", ctx.address());
+        trace!("Subscriber {} stopped", self.remote_addr);
     }
 }
 
