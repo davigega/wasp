@@ -78,14 +78,15 @@ async fn static_file(
 /// Start the server based on the passed `Config`.
 pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
     let rooms = Rooms::new().start();
+    let rooms = web::Data::new(rooms);
 
     let cfg = web::Data::new(cfg);
     let cfg_clone = cfg.clone();
 
     let server = HttpServer::new(move || {
         App::new()
-            .data(cfg_clone.clone())
-            .data(rooms.clone())
+            .app_data(cfg_clone.clone())
+            .app_data(rooms.clone())
             .route("/", web::get().to(index))
             .route("/ws/{mode:(publish|subscribe)}", web::get().to(ws))
             .route("/static/{filename:.*}", web::get().to(static_file))
