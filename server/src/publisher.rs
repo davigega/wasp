@@ -343,6 +343,10 @@ impl Publisher {
                                 publisher: ctx.address(),
                             });
                         }
+                        ctx.text(
+                            serde_json::to_string(&ServerMessage::RoomDeleted)
+                                .expect("Failed to serialize room deleted message"),
+                        );
                         *room_state = RoomState::None;
                     }
                     RoomState::Joining => {

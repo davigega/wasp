@@ -35,6 +35,7 @@ pub enum ServerMessage {
     RoomCreated {
         id: uuid::Uuid,
     },
+    RoomDeleted,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]
