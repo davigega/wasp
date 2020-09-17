@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+mod api;
 mod config;
 mod publisher;
 mod rooms;

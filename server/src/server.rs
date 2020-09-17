@@ -2,6 +2,7 @@
 //
 // Licensed under the MIT license, see the LICENSE file or <http://opensource.org/licenses/MIT>
 
+use crate::api;
 use crate::config::Config;
 use crate::publisher::Publisher;
 use crate::rooms::Rooms;
@@ -9,7 +10,7 @@ use crate::subscriber::Subscriber;
 
 use actix::{Actor, Addr};
 use actix_files::NamedFile;
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
 
 use log::error;
@@ -30,7 +31,7 @@ async fn ws(
     path: web::Path<String>,
     req: HttpRequest,
     stream: web::Payload,
-) -> impl Responder {
+) -> Result<HttpResponse, actix_web::Error> {
     match path.as_str() {
         "publish" => {
             let publisher = Publisher::new(
@@ -90,6 +91,7 @@ pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
             .route("/", web::get().to(index))
             .route("/ws/{mode:(publish|subscribe)}", web::get().to(ws))
             .route("/static/{filename:.*}", web::get().to(static_file))
+            .route("/api/rooms", web::get().to(api::rooms))
     });
 
     let server = if cfg.use_tls {

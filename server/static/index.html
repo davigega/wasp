@@ -1,1 +1,29 @@
-Hello world!
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>WebRTC Audio Publishing</title>
+    <link href="/static/style.css" rel="stylesheet">
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+  </head>
+
+  <body>
+    <h1>Available rooms</h1>
+    <table id="rooms">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </body>
+
+  <script src="/static/scripts.js"></script>
+  <script>
+    window.onload = onLoad;
+  </script>
+</html>

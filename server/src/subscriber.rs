@@ -13,7 +13,7 @@ use actix::{Actor, Addr, Handler, Message, StreamHandler, WeakAddr};
 use actix_web::dev::ConnectionInfo;
 use actix_web_actors::ws;
 
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 /// Actor that represents a WebRTC subscriber.
 #[derive(Debug)]
@@ -59,7 +59,8 @@ impl Actor for Subscriber {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Subscriber {
-    fn handle(&mut self, _msg: Result<ws::Message, ws::ProtocolError>, _ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, _ctx: &mut Self::Context) {
+        warn!("received {:?}", msg);
         // TODO
     }
 }
