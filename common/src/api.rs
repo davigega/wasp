@@ -5,12 +5,12 @@
 use serde::{Deserialize, Serialize};
 
 /// Response of the `rooms` endpoint.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub struct Rooms(Vec<Room>);
 
 /// Information for one `Room
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub struct Room {
     id: uuid::Uuid,

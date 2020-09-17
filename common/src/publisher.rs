@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Messages sent from the publisher to the server.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PublisherMessage {
     CreateRoom {
@@ -26,7 +26,7 @@ pub enum PublisherMessage {
 }
 
 /// Messages sent from the the server to the publisher.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ServerMessage {
     Error {
