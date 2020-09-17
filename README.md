@@ -35,7 +35,7 @@ $ cargo run -- --help
 
 # Captures audio from the default PulseAudio stream and publishes it on the given
 # server into the "test" room.
-$ cargo run -- --input-stream pulseaudio:default --server https://localhost:8080 --server-room "test"
+$ cargo run -- --input-stream pulseaudio:default --server wss://localhost:8080/ws/publish --server-room "test" --certificate-file ../server/cert.pem
 ```
 
 ## License
