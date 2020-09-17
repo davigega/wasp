@@ -167,6 +167,7 @@ impl Message for DeleteRoomMessage {
 #[derive(Debug)]
 pub struct JoinRoomMessage {
     pub subscriber: Addr<Subscriber>,
+    pub app_src: gst_app::AppSrc,
 }
 
 impl Message for JoinRoomMessage {
@@ -265,6 +266,7 @@ impl Handler<JoinRoomMessage> for Room {
 
         self.publisher.do_send(publisher::NewSubscriberMessage {
             subscriber: msg.subscriber.clone(),
+            app_src: msg.app_src,
         });
 
         let mut subscribers = self.subscribers.lock().unwrap();

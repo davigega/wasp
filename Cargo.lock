@@ -2553,6 +2553,7 @@ dependencies = [
  "glib",
  "gstreamer",
  "gstreamer-app",
+ "gstreamer-base",
  "gstreamer-sdp",
  "gstreamer-webrtc",
  "log",

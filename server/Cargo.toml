@@ -9,6 +9,7 @@ license = "MIT"
 anyhow = "1"
 gst = { version = "0.16", package = "gstreamer" }
 gst-webrtc = { version = "0.16", package = "gstreamer-webrtc" }
+gst-base = { version = "0.16", package = "gstreamer-base" }
 gst-app = { version = "0.16", package = "gstreamer-app" }
 gst-sdp = { version = "0.16", package = "gstreamer-sdp" }
 glib = "0.10"

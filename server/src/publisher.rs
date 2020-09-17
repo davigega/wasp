@@ -23,6 +23,7 @@ use actix_web_actors::ws;
 use log::{debug, error, trace, warn};
 
 use gst::prelude::*;
+use gst_base::prelude::*;
 
 use webrtc_audio_publishing::publisher::{PublisherMessage, ServerMessage};
 
@@ -32,6 +33,13 @@ enum RoomState {
     None,
     Joining,
     Joined(WeakAddr<Room>, RoomId),
+}
+
+/// Stores all current subscribes and state relevant for them.
+#[derive(Debug)]
+struct Subscribers {
+    latency: gst::ClockTime,
+    subscribers: HashMap<Addr<Subscriber>, gst_app::AppSrc>,
 }
 
 /// Actor that represents a WebRTC publisher.
@@ -49,7 +57,7 @@ pub struct Publisher {
     webrtcbin: gst::Element,
     app_sink: gst_app::AppSink,
 
-    subscribers: Arc<Mutex<HashMap<Addr<Subscriber>, gst_app::AppSrc>>>,
+    subscribers: Arc<Mutex<Subscribers>>,
 }
 
 impl Publisher {
@@ -76,6 +84,17 @@ impl Publisher {
             .downcast::<gst_app::AppSink>()
             .expect("Failed to downcast to appsink");
 
+        app_sink.set_caps(Some(&gst::Caps::builder("application/x-rtp").build()));
+        // Synchronization happens in the subscriber pipelines at the very end, no need to
+        // delay buffers here in addition.
+        app_sink.set_sync(false);
+
+        // Use the same clock and base time in publisher and subscriber pipelines
+        // for synchronization purposes.
+        pipeline.use_clock(Some(&gst::SystemClock::obtain()));
+        pipeline.set_start_time(gst::CLOCK_TIME_NONE);
+        pipeline.set_base_time(gst::ClockTime::from(0));
+
         pipeline.add(&webrtcbin).unwrap();
         pipeline.add(&app_sink).unwrap();
 
@@ -87,7 +106,10 @@ impl Publisher {
         }
         webrtcbin.set_property_from_str("bundle-policy", "max-bundle");
 
-        let subscribers = Arc::new(Mutex::new(HashMap::new()));
+        let subscribers = Arc::new(Mutex::new(Subscribers {
+            latency: gst::CLOCK_TIME_NONE,
+            subscribers: HashMap::new(),
+        }));
 
         Ok(Publisher {
             cfg,
@@ -355,7 +377,14 @@ impl Publisher {
                     }
                     RoomState::None => (),
                 }
-                self.subscribers.lock().unwrap().clear();
+                self.pipeline.call_async(|pipeline| {
+                    debug!("Stopping pipeline {}", pipeline.get_name());
+                    let _ = pipeline.set_state(gst::State::Null);
+                });
+
+                let mut subscribers = self.subscribers.lock().unwrap();
+                subscribers.subscribers.clear();
+                subscribers.latency = gst::CLOCK_TIME_NONE;
             }
             Err(err) => {
                 error!(
@@ -384,7 +413,10 @@ impl Publisher {
             }
         }
 
-        self.subscribers.lock().unwrap().clear();
+        {
+            let mut subscribers = self.subscribers.lock().unwrap();
+            subscribers.subscribers.clear();
+        }
 
         self.app_sink
             .set_callbacks(gst_app::AppSinkCallbacks::builder().build());
@@ -427,23 +459,16 @@ impl Publisher {
         }
     }
 
-    /// Called whenever webrtcbin has a new local ICE candidate.
-    fn handle_local_ice_candidate(addr: &Addr<Self>, candidate: String, sdp_mline_index: u32) {
-        addr.do_send(ICECandidateMessage {
-            candidate,
-            sdp_mline_index,
-        });
-    }
-
     /// Called whenever the appsink has a new sample. Forward sample to all current subscribers.
     fn handle_new_sample(
         addr: Addr<Self>,
         app_sink: &gst_app::AppSink,
-        subscribers: &Arc<Mutex<HashMap<Addr<Subscriber>, gst_app::AppSrc>>>,
+        subscribers: &Arc<Mutex<Subscribers>>,
     ) {
         let subscribers = subscribers
             .lock()
             .unwrap()
+            .subscribers
             .iter()
             .map(|(a, s)| (a.clone(), s.clone()))
             .collect::<Vec<_>>();
@@ -476,11 +501,12 @@ impl Publisher {
     fn handle_eos(
         addr: Addr<Self>,
         _app_sink: &gst_app::AppSink,
-        subscribers: &Arc<Mutex<HashMap<Addr<Subscriber>, gst_app::AppSrc>>>,
+        subscribers: &Arc<Mutex<Subscribers>>,
     ) {
         let subscribers = subscribers
             .lock()
             .unwrap()
+            .subscribers
             .iter()
             .map(|(a, s)| (a.clone(), s.clone()))
             .collect::<Vec<_>>();
@@ -518,7 +544,10 @@ impl Actor for Publisher {
                 let candidate = args[2].get::<String>().expect("Invalid argument").unwrap();
 
                 if let Some(addr) = addr.upgrade() {
-                    Self::handle_local_ice_candidate(&addr, candidate, sdp_mline_index);
+                    addr.do_send(ICECandidateMessage {
+                        candidate,
+                        sdp_mline_index,
+                    });
                 }
 
                 None
@@ -546,6 +575,37 @@ impl Actor for Publisher {
                     }
                 })
                 .build(),
+        );
+
+        // Catch Latency events and update all subscribers whenever it changes.
+        let subscribers_clone = self.subscribers.clone();
+        let pad = self
+            .app_sink
+            .get_static_pad("sink")
+            .expect("No sink pad on appsink");
+        pad.add_probe(
+            gst::PadProbeType::EVENT_UPSTREAM,
+            move |_pad, info| match info.data {
+                Some(gst::PadProbeData::Event(ref ev))
+                    if ev.get_type() == gst::EventType::Latency =>
+                {
+                    let latency = match ev.view() {
+                        gst::EventView::Latency(ev) => ev.get_latency(),
+                        _ => unreachable!(),
+                    };
+
+                    trace!("Got new latency {}, notifying subscribers", latency,);
+
+                    let mut subscribers = subscribers_clone.lock().unwrap();
+                    subscribers.latency = latency;
+                    for subscriber in subscribers.subscribers.values() {
+                        subscriber.set_latency(latency, gst::CLOCK_TIME_NONE);
+                    }
+
+                    gst::PadProbeReturn::Ok
+                }
+                _ => gst::PadProbeReturn::Ok,
+            },
         );
 
         // Handle pipeline bus messages asynchronously.
@@ -600,6 +660,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Publisher {
 #[derive(Debug)]
 pub struct NewSubscriberMessage {
     pub subscriber: Addr<Subscriber>,
+    pub app_src: gst_app::AppSrc,
 }
 
 impl Message for NewSubscriberMessage {
@@ -616,7 +677,12 @@ impl Handler<NewSubscriberMessage> for Publisher {
     ) -> Self::Result {
         debug!("New subscriber {:?} joining", msg.subscriber);
 
-        // TODO: send message to the subscriber to get its appsink and store it
+        let mut subscribers = self.subscribers.lock().unwrap();
+        if subscribers.latency.is_some() {
+            msg.app_src
+                .set_latency(subscribers.latency, gst::CLOCK_TIME_NONE);
+        }
+        subscribers.subscribers.insert(msg.subscriber, msg.app_src);
 
         Ok(())
     }
@@ -646,6 +712,7 @@ impl Handler<LeavingSubscriberMessage> for Publisher {
             .subscribers
             .lock()
             .unwrap()
+            .subscribers
             .remove(&msg.subscriber)
             .is_none()
         {
@@ -807,6 +874,12 @@ impl StreamHandler<BusMessage> for Publisher {
                         err
                     );
                 }
+            }
+            MessageView::Latency(_) => {
+                debug!("Publisher {} updated latency", self.remote_addr);
+                self.pipeline.call_async(|pipeline| {
+                    let _ = pipeline.recalculate_latency();
+                });
             }
             _ => (),
         }

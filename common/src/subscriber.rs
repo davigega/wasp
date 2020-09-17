@@ -31,6 +31,7 @@ pub enum ServerMessage {
     Error {
         message: String,
     },
+    LeftRoom,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]
