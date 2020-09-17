@@ -52,6 +52,7 @@ impl Actor for Subscriber {
     fn stopped(&mut self, _ctx: &mut Self::Context) {
         // Drop reference to the joined room, if any
         self.room.lock().unwrap().take();
+        // TODO unsubscribe etc
 
         trace!("Subscriber {} stopped", self.remote_addr);
     }

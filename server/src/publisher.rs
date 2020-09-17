@@ -188,7 +188,7 @@ impl Publisher {
                 return Err(String::from("Failed to set pipeline to Playing"));
             }
 
-            debug!("Setting remote description {:?}", sdp_message);
+            debug!("Setting remote description {:#?}", sdp_message);
             let offer = gst_webrtc::WebRTCSessionDescription::new(
                 gst_webrtc::WebRTCSDPType::Offer,
                 sdp_message,
@@ -226,7 +226,7 @@ impl Publisher {
                 .emit("set-local-description", &[&answer, &None::<gst::Promise>])
                 .expect("Failed to emit set-local-description signal");
 
-            debug!("Created answer description {:?}", answer);
+            debug!("Created answer description {:#?}", answer.get_sdp());
             Ok(answer)
         }
         .into_actor(self)
@@ -551,18 +551,9 @@ impl Actor for Publisher {
     }
 
     /// Called when the publisher is fully stopped.
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
+    fn stopped(&mut self, ctx: &mut Self::Context) {
         trace!("Publisher {} stopped", self.remote_addr);
-
-        // Drop reference to the joined room, if any
-        *self.room.lock().unwrap() = RoomState::None;
-
-        // Shut down pipeline finally and get rid of all subscribers
-        let _ = self.pipeline.set_state(gst::State::Null);
-        self.subscribers.lock().unwrap().clear();
-
-        self.app_sink
-            .set_callbacks(gst_app::AppSinkCallbacks::builder().build());
+        self.shutdown(ctx);
     }
 }
 
