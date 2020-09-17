@@ -5,12 +5,12 @@
 use anyhow::Error;
 use structopt::StructOpt;
 
+use log::info;
+
 mod config;
 use config::Config;
-
-async fn run(_cfg: &Config) -> Result<(), Error> {
-    Ok(())
-}
+mod publisher;
+use publisher::Publisher;
 
 fn main() -> Result<(), Error> {
     let cfg = Config::from_args();
@@ -27,5 +27,17 @@ fn main() -> Result<(), Error> {
         .enable_all()
         .build()?;
 
-    runtime.block_on(run(&cfg))
+    runtime.block_on(async move {
+        let (publisher, join_handle) = Publisher::run(cfg).await?;
+
+        // Stop cleanly on ctrl+c
+        let mut publisher_clone = publisher.clone();
+        tokio::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            info!("Received ctrl+c");
+            let _ = publisher_clone.stop();
+        });
+
+        join_handle.await
+    })
 }

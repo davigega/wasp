@@ -6,6 +6,8 @@ use anyhow::{bail, Error};
 
 use structopt::StructOpt;
 
+use std::path::PathBuf;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChannelConfiguration {
     Mono,
@@ -46,6 +48,10 @@ pub struct Config {
     /// Description to use for the room.
     #[structopt(long)]
     pub server_room_description: Option<String>,
+
+    /// TLS Certificate chain file.
+    #[structopt(long)]
+    pub certificate_file: Option<PathBuf>,
 
     /// TURN server to use, e.g. turn://user:password@foo.bar.com:3478.
     #[structopt(long)]
