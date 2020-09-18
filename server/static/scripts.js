@@ -1,10 +1,18 @@
 // reference to the rooms <table> element
 const rooms_table = document.getElementById('rooms');
 
+// reference to the player <audio> element
+const audio_player = document.getElementById('audio');
+
+// Override with your own STUN/TURN servers if you want
+const rtc_config = {iceServers: [{urls: 'stun:stun.l.google.com:19302'}]};
+
 // websocket connection if connected/connecting to a room, otherwise null
 var websocket = null;
 // UUID of playing room, otherwise null
 var playing_room = null;
+// Peer connection if currently playing a room, otherwise null
+var peer_connection = null;
 
 // TODO: exception handling
 
@@ -101,8 +109,6 @@ function playRoom(id) {
     playing_room = id;
     connectWebsocket();
 
-    // TODO: Prepare WebRTC
-
     const play_row = document.getElementById(id);
     play_row.classList.add('playing');
 
@@ -117,7 +123,12 @@ function pauseRoom() {
 
     console.debug('pausing ' + playing_room);
 
-    // TODO: Stop playback
+    audio_player.srcObject = null;
+
+    if (peer_connection != null) {
+        peer_connection.close();
+        peer_connection = null;
+    }
 
     if (websocket != null) {
         websocket.close();
@@ -169,6 +180,19 @@ function onServerOpen(ws, event) {
             'id': playing_room
         }
     }));
+
+    peer_connection = new RTCPeerConnection(rtc_config);
+    peer_connection.onicecandidate = function(event) {
+        if (websocket == null || event.candidate == null) {
+            return;
+        }
+
+        websocket.send(JSON.stringify({'ice': event.candidate }));
+    };
+
+    peer_connection.ontrack = function(event) {
+        audio_player.srcObject = event.streams[0];
+    };
 }
 
 function onServerMessage(ws, event) {
@@ -177,10 +201,33 @@ function onServerMessage(ws, event) {
         return;
     }
 
-    console.log('Received ' + event.data);
-
     const msg = JSON.parse(event.data);
-    console.log(msg);
+
+    if (msg.sdp != null) {
+        if (peer_connection == null) {
+            return;
+        }
+
+        peer_connection.setRemoteDescription(msg.sdp).then(function() {
+            peer_connection.createAnswer().then(function(sdp) {
+                peer_connection.setLocalDescription(sdp).then(function() {
+                    if (websocket != null) {
+                        websocket.send(JSON.stringify({'sdp': peer_connection.localDescription }));
+                    }
+                });
+            });
+        });
+    } else if (msg.ice != null) {
+        if (peer_connection == null) {
+            return;
+        }
+        peer_connection.addIceCandidate(new RTCIceCandidate(msg.ice));
+    } else if (msg.error != null) {
+        console.error('Got error: ' + msg.error.message);
+        pauseRoom();
+    } else {
+        console.error('Unknown message: ' + msg);
+    }
 }
 
 function onServerClose(ws, event) {
@@ -201,7 +248,7 @@ function onServerError(ws, event) {
         return;
     }
 
-    console.log('Server error ' + event.data);
+    console.error('Server error');
 
     websocket.close();
     websocket = null;
