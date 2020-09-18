@@ -272,6 +272,13 @@ impl Publisher {
                             error!("Got server error: {}", message);
                             bail!("Server error: {}", message);
                         }
+                        ServerMessage::RoomDeleted => {
+                            info!("Room got deleted");
+                            websocket_sender.close_channel();
+                            event_receiver.close();
+                            websocket_send_task.await.context("Closing websocket")??;
+                            break;
+                        }
                         ServerMessage::RoomCreated { .. } => {
                             error!("Unexpected RoomCreated server message");
                             continue;
