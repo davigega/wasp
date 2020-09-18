@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Messages sent from the subscriber to the server.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SubscriberMessage {
     JoinRoom {
@@ -24,7 +24,7 @@ pub enum SubscriberMessage {
 }
 
 /// Messages sent from the the server to the subscriber.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ServerMessage {
     Error {
