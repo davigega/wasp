@@ -34,6 +34,8 @@ pub async fn rooms(rooms: web::Data<Addr<Rooms>>) -> Result<HttpResponse, actix_
             id: room_desc.id.0,
             name: room_desc.name.clone(),
             description: room_desc.description.clone(),
+            creation_date: room_desc.creation_date,
+            number_of_subscribers: room_desc.number_of_subscribers,
         });
     }
 

@@ -37,6 +37,8 @@ function updateRooms() {
 
             const tbody = document.createElement('tbody');
             var found_playing_room = false;
+            // TODO: Sort rooms by name, include number of listeners and
+            // creation date
             rooms.forEach(room => {
                 const tr = document.createElement('tr');
                 tr.id = room.id;
@@ -48,6 +50,16 @@ function updateRooms() {
                 const td_description = document.createElement('td');
                 td_description.textContent = room.description;
                 tr.appendChild(td_description);
+
+                const td_creation_date = document.createElement('td');
+                const date = new Date(0);
+                date.setUTCSeconds(room.creation_date);
+                td_creation_date.textContent = date.toISOString();
+                tr.appendChild(td_creation_date);
+
+                const td_number_of_subscribers = document.createElement('td');
+                td_number_of_subscribers.textContent = room.number_of_subscribers;
+                tr.appendChild(td_number_of_subscribers);
 
                 const td_play = document.createElement('td');
                 const play_button = document.createElement('button');
@@ -99,11 +111,12 @@ function updateRooms() {
 function playRoom(id) {
     if (playing_room != null && playing_room != id) {
         pauseRoom();
+        // TODO: Wait until this is actually done
     }
     console.debug('playing ' + id);
 
     websocket.send(JSON.stringify({
-        'join_room': {
+        'joinroom': {
             'id': id
         }
     }));
@@ -126,7 +139,7 @@ function pauseRoom() {
 
     // TODO: Stop playback
 
-    websocket.send(JSON.stringify('leave_room'));
+    websocket.send(JSON.stringify('leaveroom'));
 
     const play_button = document.getElementById('playButton-' + playing_room);
     play_button.textContent = 'Play';

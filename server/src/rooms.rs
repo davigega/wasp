@@ -141,7 +141,8 @@ pub struct RoomInformation {
     pub id: RoomId,
     pub name: String,
     pub description: Option<String>,
-    // TODO: creation date, number of listeners
+    pub number_of_subscribers: u32,
+    pub creation_date: chrono::DateTime<chrono::Utc>,
 }
 
 impl Message for RoomInformationMessage {
@@ -185,6 +186,7 @@ pub struct Room {
     id: RoomId,
     name: String,
     description: Option<String>,
+    creation_date: chrono::DateTime<chrono::Utc>,
 
     rooms: WeakAddr<Rooms>,
 
@@ -205,6 +207,7 @@ impl Room {
             id: RoomId(uuid::Uuid::new_v4()),
             name,
             description,
+            creation_date: chrono::Utc::now(),
             publisher,
             subscribers: HashSet::new(),
         }
@@ -305,6 +308,8 @@ impl Handler<RoomInformationMessage> for Room {
             id: self.id,
             name: self.name.clone(),
             description: self.description.clone(),
+            number_of_subscribers: self.subscribers.len() as u32,
+            creation_date: self.creation_date,
         })
     }
 }

@@ -16,4 +16,7 @@ pub struct Room {
     pub id: uuid::Uuid,
     pub name: String,
     pub description: Option<String>,
+    pub number_of_subscribers: u32,
+    #[serde(with = "chrono::serde::ts_seconds")]
+    pub creation_date: chrono::DateTime<chrono::Utc>,
 }

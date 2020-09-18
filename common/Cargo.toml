@@ -8,4 +8,5 @@ license = "MIT"
 [dependencies]
 serde = "1"
 uuid = { version = "0.8", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
  
