@@ -356,13 +356,13 @@ impl Publisher {
                     self.remote_addr, err
                 );
                 ctx.notify(ErrorMessage(String::from("Internal processing error")));
-                self.shutdown(ctx);
+                self.shutdown(ctx, false);
             }
         }
     }
 
     /// Shut down this publisher and delete its room.
-    fn shutdown(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
+    fn shutdown(&mut self, ctx: &mut ws::WebsocketContext<Self>, from_close: bool) {
         debug!("Shutting down publisher {}", self.remote_addr);
 
         let _ = self.pipeline.set_state(gst::State::Null);
@@ -384,7 +384,9 @@ impl Publisher {
         self.app_sink
             .set_callbacks(gst_app::AppSinkCallbacks::builder().build());
 
-        ctx.close(None);
+        if !from_close {
+            ctx.close(None);
+        }
         ctx.stop();
     }
 
@@ -580,7 +582,7 @@ impl Actor for Publisher {
     /// Called when the publisher is fully stopped.
     fn stopped(&mut self, ctx: &mut Self::Context) {
         trace!("Publisher {} stopped", self.remote_addr);
-        self.shutdown(ctx);
+        self.shutdown(ctx, false);
     }
 }
 
@@ -597,7 +599,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Publisher {
                     "Publisher {} websocket connection closed: {:?}",
                     self.remote_addr, reason
                 );
-                self.shutdown(ctx);
+                self.shutdown(ctx, true);
             }
             Ok(ws::Message::Binary(_binary)) => {
                 error!("Unsupported binary message, ignoring");
@@ -613,7 +615,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Publisher {
                     "Publisher {} websocket connection error: {:?}",
                     self.remote_addr, err
                 );
-                self.shutdown(ctx);
+                self.shutdown(ctx, false);
             }
         }
     }
@@ -708,7 +710,7 @@ impl Handler<ErrorMessage> for Publisher {
             serde_json::to_string(&ServerMessage::Error { message: msg.0 })
                 .expect("Failed to serialize error message"),
         );
-        self.shutdown(ctx);
+        self.shutdown(ctx, false);
     }
 }
 

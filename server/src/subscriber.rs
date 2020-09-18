@@ -241,6 +241,8 @@ impl Subscriber {
                 .expect("Invalid argument")
                 .unwrap();
 
+            // TODO: SDP media should be sendonly
+
             debug!("Created offer {:#?}", offer.get_sdp());
 
             webrtcbin
@@ -358,13 +360,13 @@ impl Subscriber {
                     self.remote_addr, err
                 );
                 ctx.notify(ErrorMessage(String::from("Internal processing error")));
-                self.shutdown(ctx);
+                self.shutdown(ctx, false);
             }
         }
     }
 
     /// Shut down this subscriber and delete its room.
-    fn shutdown(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
+    fn shutdown(&mut self, ctx: &mut ws::WebsocketContext<Self>, from_close: bool) {
         debug!("Shutting down subscriber {}", self.remote_addr);
 
         let _ = self.pipeline.set_state(gst::State::Null);
@@ -378,7 +380,9 @@ impl Subscriber {
             }
         }
 
-        ctx.close(None);
+        if !from_close {
+            ctx.close(None);
+        }
         ctx.stop();
     }
 }
@@ -433,7 +437,7 @@ impl Actor for Subscriber {
     /// Called when the subscriber is fully stopped.
     fn stopped(&mut self, ctx: &mut Self::Context) {
         trace!("Subscriber {} stopped", self.remote_addr);
-        self.shutdown(ctx);
+        self.shutdown(ctx, false);
     }
 }
 
@@ -449,7 +453,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Subscriber {
                     "Publisher {} websocket connection closed: {:?}",
                     self.remote_addr, reason
                 );
-                self.shutdown(ctx);
+                self.shutdown(ctx, true);
             }
             Ok(ws::Message::Binary(_binary)) => {
                 error!("Unsupported binary message, ignoring");
@@ -465,7 +469,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Subscriber {
                     "Subscriber {} websocket connection error: {:?}",
                     self.remote_addr, err
                 );
-                self.shutdown(ctx);
+                self.shutdown(ctx, false);
             }
         }
     }
@@ -488,7 +492,7 @@ impl Handler<RoomDeletedMessage> for Subscriber {
         ctx: &mut ws::WebsocketContext<Self>,
     ) -> Self::Result {
         debug!("Room deleted for subscriber {}", self.remote_addr);
-        self.shutdown(ctx);
+        self.shutdown(ctx, false);
     }
 }
 
@@ -513,7 +517,7 @@ impl Handler<ErrorMessage> for Subscriber {
             serde_json::to_string(&ServerMessage::Error { message: msg.0 })
                 .expect("Failed to serialize error message"),
         );
-        self.shutdown(ctx);
+        self.shutdown(ctx, false);
     }
 }
 
