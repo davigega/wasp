@@ -4,7 +4,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
-use std::sync::Mutex;
 
 use actix::{
     Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, MessageResult, WeakAddr,
@@ -68,14 +67,14 @@ impl Message for RoomDeletedMessage {
 /// Actor that keeps track of all currently existing `Room`s.
 #[derive(Debug)]
 pub struct Rooms {
-    rooms: Mutex<HashMap<RoomId, Addr<Room>>>,
+    rooms: HashMap<RoomId, Addr<Room>>,
 }
 
 impl Rooms {
     /// Create a new `Rooms` instance.
     pub fn new() -> Self {
         Self {
-            rooms: Mutex::new(HashMap::new()),
+            rooms: HashMap::new(),
         }
     }
 }
@@ -90,15 +89,13 @@ impl Handler<CreateRoomMessage> for Rooms {
     fn handle(&mut self, msg: CreateRoomMessage, ctx: &mut Context<Self>) -> Self::Result {
         info!("Creating new room for message {:?}", msg);
 
-        let mut rooms = self.rooms.lock().unwrap();
-
         let room = Room::new(ctx.address(), msg.name, msg.description, msg.publisher);
         let room_id = room.id;
 
         info!("Created new room {}", room_id);
 
         let room_addr = room.start();
-        rooms.insert(room_id, room_addr.clone());
+        self.rooms.insert(room_id, room_addr.clone());
 
         Ok((room_addr, room_id))
     }
@@ -110,8 +107,7 @@ impl Handler<FindRoomMessage> for Rooms {
     fn handle(&mut self, msg: FindRoomMessage, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("Finding room {}", msg.room_id);
 
-        let rooms = self.rooms.lock().unwrap();
-        rooms.get(&msg.room_id).cloned()
+        self.rooms.get(&msg.room_id).cloned()
     }
 }
 
@@ -121,7 +117,7 @@ impl Handler<ListRoomsMessage> for Rooms {
     fn handle(&mut self, _msg: ListRoomsMessage, _ctx: &mut Context<Self>) -> Self::Result {
         debug!("Listing all current rooms");
 
-        MessageResult(self.rooms.lock().unwrap().values().cloned().collect())
+        MessageResult(self.rooms.values().cloned().collect())
     }
 }
 
@@ -129,11 +125,9 @@ impl Handler<RoomDeletedMessage> for Rooms {
     type Result = ();
 
     fn handle(&mut self, msg: RoomDeletedMessage, _ctx: &mut Context<Self>) -> Self::Result {
-        let mut rooms = self.rooms.lock().unwrap();
-
         info!("Room {} destroyed", msg.room_id);
 
-        rooms.remove(&msg.room_id).expect("Room not found");
+        self.rooms.remove(&msg.room_id).expect("Room not found");
     }
 }
 
@@ -147,6 +141,7 @@ pub struct RoomInformation {
     pub id: RoomId,
     pub name: String,
     pub description: Option<String>,
+    // TODO: creation date, number of listeners
 }
 
 impl Message for RoomInformationMessage {
@@ -194,7 +189,7 @@ pub struct Room {
     rooms: WeakAddr<Rooms>,
 
     publisher: Addr<Publisher>,
-    subscribers: Mutex<HashSet<Addr<Subscriber>>>,
+    subscribers: HashSet<Addr<Subscriber>>,
 }
 
 impl Room {
@@ -211,7 +206,7 @@ impl Room {
             name,
             description,
             publisher,
-            subscribers: Mutex::new(HashSet::new()),
+            subscribers: HashSet::new(),
         }
     }
 }
@@ -237,12 +232,8 @@ impl Handler<DeleteRoomMessage> for Room {
         }
 
         info!("Deleting room {:?}", self.id);
-
-        {
-            let mut subscribers = self.subscribers.lock().unwrap();
-            for subscriber in subscribers.drain() {
-                subscriber.do_send(subscriber::RoomDeletedMessage);
-            }
+        for subscriber in self.subscribers.drain() {
+            subscriber.do_send(subscriber::RoomDeletedMessage);
         }
 
         if let Some(rooms) = self.rooms.upgrade() {
@@ -269,8 +260,7 @@ impl Handler<JoinRoomMessage> for Room {
             app_src: msg.app_src,
         });
 
-        let mut subscribers = self.subscribers.lock().unwrap();
-        subscribers.insert(msg.subscriber);
+        self.subscribers.insert(msg.subscriber);
 
         Ok(())
     }
@@ -285,19 +275,16 @@ impl Handler<LeaveRoomMessage> for Room {
             self.id, msg.subscriber
         );
 
-        {
-            let mut subscribers = self.subscribers.lock().unwrap();
-            if !subscribers.remove(&msg.subscriber) {
-                error!(
-                    "Room {:?} didn't have subscriber {:?}",
-                    self.id, msg.subscriber
-                );
-                bail!(
-                    "Room {:?} didn't have subscriber {:?}",
-                    self.id,
-                    msg.subscriber
-                );
-            }
+        if !self.subscribers.remove(&msg.subscriber) {
+            error!(
+                "Room {:?} didn't have subscriber {:?}",
+                self.id, msg.subscriber
+            );
+            bail!(
+                "Room {:?} didn't have subscriber {:?}",
+                self.id,
+                msg.subscriber
+            );
         }
 
         self.publisher.do_send(publisher::LeavingSubscriberMessage {
