@@ -11,7 +11,6 @@ pub enum SubscriberMessage {
     JoinRoom {
         id: uuid::Uuid,
     },
-    LeaveRoom,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]
@@ -31,7 +30,6 @@ pub enum ServerMessage {
     Error {
         message: String,
     },
-    LeftRoom,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]

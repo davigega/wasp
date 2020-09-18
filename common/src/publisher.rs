@@ -12,7 +12,6 @@ pub enum PublisherMessage {
         name: String,
         description: Option<String>,
     },
-    DeleteRoom,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]
@@ -35,7 +34,6 @@ pub enum ServerMessage {
     RoomCreated {
         id: uuid::Uuid,
     },
-    RoomDeleted,
     Ice {
         candidate: String,
         #[serde(rename = "sdpMLineIndex")]

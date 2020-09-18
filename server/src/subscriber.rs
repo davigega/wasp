@@ -304,35 +304,6 @@ impl Subscriber {
                     ctx.spawn(self.join_room_future(ctx.address(), rooms, RoomId(id)));
                 }
             }
-            Ok(SubscriberMessage::LeaveRoom) => {
-                debug!("Subscriber {} leaving room", self.remote_addr);
-
-                let mut room_state = self.room.lock().unwrap();
-                match &*room_state {
-                    RoomState::Joined(room, _) => {
-                        if let Some(room) = room.upgrade() {
-                            room.do_send(crate::rooms::LeaveRoomMessage {
-                                subscriber: ctx.address(),
-                            });
-                        }
-                        ctx.text(
-                            serde_json::to_string(&ServerMessage::LeftRoom)
-                                .expect("Failed to serialize left room message"),
-                        );
-                        *room_state = RoomState::None;
-                    }
-                    RoomState::Joining => {
-                        debug!("Aborting joining of room");
-                        *room_state = RoomState::None;
-                    }
-                    RoomState::None => (),
-                }
-
-                self.pipeline.call_async(|pipeline| {
-                    debug!("Stopping pipeline");
-                    let _ = pipeline.set_state(gst::State::Null);
-                });
-            }
             Ok(SubscriberMessage::Ice {
                 candidate,
                 sdp_mline_index,
@@ -522,26 +493,7 @@ impl Handler<RoomDeletedMessage> for Subscriber {
         ctx: &mut ws::WebsocketContext<Self>,
     ) -> Self::Result {
         debug!("Room deleted for subscriber {}", self.remote_addr);
-
-        let mut room_state = self.room.lock().unwrap();
-        match &*room_state {
-            RoomState::Joined(_, _) => {
-                ctx.text(
-                    serde_json::to_string(&ServerMessage::LeftRoom)
-                        .expect("Failed to serialize left room message"),
-                );
-                *room_state = RoomState::None;
-            }
-            RoomState::Joining => {
-                *room_state = RoomState::None;
-            }
-            RoomState::None => (),
-        }
-
-        self.pipeline.call_async(|pipeline| {
-            debug!("Stopping pipeline");
-            let _ = pipeline.set_state(gst::State::Null);
-        });
+        self.shutdown(ctx);
     }
 }
 

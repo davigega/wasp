@@ -354,38 +354,6 @@ impl Publisher {
                 // Asynchronously handle the SDP by starting the pipeline and creating the answer SDP.
                 ctx.spawn(self.handle_sdp_future(sdp_message));
             }
-            Ok(PublisherMessage::DeleteRoom) => {
-                debug!("Publisher {} deleting room", self.remote_addr);
-
-                let mut room_state = self.room.lock().unwrap();
-                match &*room_state {
-                    RoomState::Joined(room, _) => {
-                        if let Some(room) = room.upgrade() {
-                            room.do_send(crate::rooms::DeleteRoomMessage {
-                                publisher: ctx.address(),
-                            });
-                        }
-                        ctx.text(
-                            serde_json::to_string(&ServerMessage::RoomDeleted)
-                                .expect("Failed to serialize room deleted message"),
-                        );
-                        *room_state = RoomState::None;
-                    }
-                    RoomState::Joining => {
-                        debug!("Aborting joining of room");
-                        *room_state = RoomState::None;
-                    }
-                    RoomState::None => (),
-                }
-                self.pipeline.call_async(|pipeline| {
-                    debug!("Stopping pipeline {}", pipeline.get_name());
-                    let _ = pipeline.set_state(gst::State::Null);
-                });
-
-                let mut subscribers = self.subscribers.lock().unwrap();
-                subscribers.subscribers.clear();
-                subscribers.latency = gst::CLOCK_TIME_NONE;
-            }
             Err(err) => {
                 error!(
                     "Publisher {} has websocket error: {}",
