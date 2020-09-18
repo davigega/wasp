@@ -1,27 +1,12 @@
+// reference to the rooms <table> element
 const rooms_table = document.getElementById('rooms');
-var websocket = connectWebsocket();
 
+// websocket connection if connected/connecting to a room, otherwise null
+var websocket = null;
+// UUID of playing room, otherwise null
 var playing_room = null;
 
-function connectWebsocket() {
-    var scheme;
-    if (window.location.protocol == 'https:') {
-        scheme = 'wss:';
-    } else if (window.location.protocol == 'http:') {
-        scheme = 'ws:';
-    }
-    const server = window.location.hostname;
-    const port = window.location.port || 80;
-    const ws_url = scheme + '//' + server + ':' + port + '/ws/subscribe';
-
-    const ws = new WebSocket(ws_url);
-
-    ws.addEventListener('error', onServerError);
-    ws.addEventListener('message', onServerMessage);
-    ws.addEventListener('close', onServerClose);
-
-    return ws;
-}
+// TODO: exception handling
 
 function onLoad() {
     updateRooms();
@@ -35,10 +20,10 @@ function updateRooms() {
         if (request.status >= 200 && request.status < 400) {
             var rooms = JSON.parse(this.response);
 
+            rooms.sort((a, b) => a.name.localeCompare(b.name));
+
             const tbody = document.createElement('tbody');
             var found_playing_room = false;
-            // TODO: Sort rooms by name, include number of listeners and
-            // creation date
             rooms.forEach(room => {
                 const tr = document.createElement('tr');
                 tr.id = room.id;
@@ -64,7 +49,6 @@ function updateRooms() {
                 const td_play = document.createElement('td');
                 const play_button = document.createElement('button');
                 play_button.type = 'button';
-                play_button.id = 'playButton-' + room.id;
                 play_button.className = 'playButton';
 
                 if (playing_room == room.id) {
@@ -111,23 +95,19 @@ function updateRooms() {
 function playRoom(id) {
     if (playing_room != null && playing_room != id) {
         pauseRoom();
-        // TODO: Wait until this is actually done
     }
     console.debug('playing ' + id);
 
-    websocket.send(JSON.stringify({
-        'joinroom': {
-            'id': id
-        }
-    }));
+    playing_room = id;
+    connectWebsocket();
 
-    const play_button = document.getElementById('playButton-' + id);
-    play_button.textContent = 'Pause';
+    // TODO: Prepare WebRTC
 
     const play_row = document.getElementById(id);
     play_row.classList.add('playing');
 
-    playing_room = id;
+    const play_button = play_row.cells[4].firstChild;
+    play_button.textContent = 'Pause';
 }
 
 function pauseRoom() {
@@ -139,38 +119,91 @@ function pauseRoom() {
 
     // TODO: Stop playback
 
-    websocket.send(JSON.stringify('leaveroom'));
-
-    const play_button = document.getElementById('playButton-' + playing_room);
-    play_button.textContent = 'Play';
+    if (websocket != null) {
+        websocket.close();
+        websocket = null;
+    }
 
     const play_row = document.getElementById(playing_room);
     play_row.classList.remove('playing');
 
+    const play_button = play_row.cells[4].firstChild;
+    play_button.textContent = 'Play';
+
     playing_room = null;
 }
 
-function onServerMessage(event) {
-    console.log("Received " + event.data);
+function connectWebsocket() {
+    var scheme;
 
-    // TODO: Handle messages
+    if (window.location.protocol == 'https:') {
+        scheme = 'wss:';
+    } else if (window.location.protocol == 'http:') {
+        scheme = 'ws:';
+    }
+    const server = window.location.hostname;
+    const port = window.location.port || 80;
+    const ws_url = scheme + '//' + server + ':' + port + '/ws/subscribe';
 
+    const ws = new WebSocket(ws_url);
+
+    ws.addEventListener('open', (event) => onServerOpen(ws, event));
+    ws.addEventListener('error', (event) => onServerError(ws, event));
+    ws.addEventListener('message', (event) => onServerMessage(ws, event));
+    ws.addEventListener('close', (event) => onServerClose(ws, event));
+
+    websocket = ws;
 }
 
-function onServerClose(event) {
-    console.log("Disconnected");
+function onServerOpen(ws, event) {
+    // Ignore if the situation changed in the meantime
+    if (playing_room == null || ws != websocket) {
+        return;
+    }
 
-    pauseRoom();
-    window.setTimeout(function() {
-        websocket = connectWebsocket();
-    }, 1000);
+    console.log('Opened');
+
+    // Now join the room, at this point we will start getting messages
+    websocket.send(JSON.stringify({
+        'joinroom': {
+            'id': playing_room
+        }
+    }));
 }
 
-function onServerError(event) {
-    console.log("server error " + event.data);
+function onServerMessage(ws, event) {
+    // Ignore if the situation changed in the meantime
+    if (playing_room == null || ws != websocket) {
+        return;
+    }
 
+    console.log('Received ' + event.data);
+
+    const msg = JSON.parse(event.data);
+    console.log(msg);
+}
+
+function onServerClose(ws, event) {
+    // Ignore if the situation changed in the meantime
+    if (playing_room == null || ws != websocket) {
+        return;
+    }
+
+    console.log('Disconnected');
+
+    websocket = null;
     pauseRoom();
-    window.setTimeout(function() {
-        websocket = connectWebsocket();
-    }, 3000);
+}
+
+function onServerError(ws, event) {
+    // Ignore if the situation changed in the meantime
+    if (playing_room == null || ws != websocket) {
+        return;
+    }
+
+    console.log('Server error ' + event.data);
+
+    websocket.close();
+    websocket = null;
+    pauseRoom();
 }
