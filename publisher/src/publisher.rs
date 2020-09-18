@@ -398,6 +398,21 @@ impl Publisher {
         }
         webrtcbin.set_property_from_str("bundle-policy", "max-bundle");
 
+        // Set transceiver as "sendonly". It was added above when linking the pipeline.
+        let transceiver = webrtcbin
+            .emit("get-transceiver", &[&0i32])
+            .expect("Can't emit get-transceiver(0)")
+            .unwrap()
+            .get::<gst_webrtc::WebRTCRTPTransceiver>()
+            .expect("Invalid type")
+            .unwrap();
+        transceiver
+            .set_property(
+                "direction",
+                &gst_webrtc::WebRTCRTPTransceiverDirection::Sendonly,
+            )
+            .unwrap();
+
         // Spawn task for forwarding all GStreamer messages to our event loop
         let bus = pipeline.get_bus().expect("Pipeline without bus");
         let mut bus_stream = bus.stream();

@@ -100,6 +100,21 @@ impl Subscriber {
             .link_pads(Some("src"), &webrtcbin, Some("sink_%u"))
             .expect("Couldn't link appsrc to webrtcbin");
 
+        // Set transceiver as "sendonly". It was added above when linking the pipeline.
+        let transceiver = webrtcbin
+            .emit("get-transceiver", &[&0i32])
+            .expect("Can't emit get-transceiver(0)")
+            .unwrap()
+            .get::<gst_webrtc::WebRTCRTPTransceiver>()
+            .expect("Invalid type")
+            .unwrap();
+        transceiver
+            .set_property(
+                "direction",
+                &gst_webrtc::WebRTCRTPTransceiverDirection::Sendonly,
+            )
+            .unwrap();
+
         Ok(Subscriber {
             cfg,
             rooms: rooms.downgrade(),
@@ -240,8 +255,6 @@ impl Subscriber {
                 .get::<gst_webrtc::WebRTCSessionDescription>()
                 .expect("Invalid argument")
                 .unwrap();
-
-            // TODO: SDP media should be sendonly
 
             debug!("Created offer {:#?}", offer.get_sdp());
 
