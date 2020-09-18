@@ -8,7 +8,7 @@ use crate::rooms::{self, Room, RoomId, Rooms};
 use anyhow::{bail, format_err, Error};
 
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use actix::{
     Actor, ActorContext, ActorFuture, Addr, AsyncContext, Handler, Message, StreamHandler,
@@ -39,7 +39,7 @@ pub struct Subscriber {
     cfg: Arc<Config>,
     rooms: WeakAddr<Rooms>,
     remote_addr: String,
-    room: Mutex<RoomState>,
+    room_state: RoomState,
 
     pipeline: gst::Pipeline,
     webrtcbin: gst::Element,
@@ -104,7 +104,7 @@ impl Subscriber {
             cfg,
             rooms: rooms.downgrade(),
             remote_addr: String::from(remote_addr),
-            room: Mutex::new(RoomState::None),
+            room_state: RoomState::None,
 
             pipeline,
             webrtcbin,
@@ -143,8 +143,6 @@ impl Subscriber {
         }
         .into_actor(self)
         .then(move |res, s, ctx| {
-            let mut room_state = s.room.lock().unwrap();
-
             match res {
                 Ok(Ok(Some(room))) => {
                     debug!(
@@ -152,9 +150,9 @@ impl Subscriber {
                         s.remote_addr, room_id
                     );
 
-                    match &*room_state {
+                    match &s.room_state {
                         RoomState::Joining => {
-                            *room_state = RoomState::Joined(room.downgrade(), room_id);
+                            s.room_state = RoomState::Joined(room.downgrade(), room_id);
 
                             // Now start the pipeline to generate the SDP
                             let addr = ctx.address().downgrade();
@@ -188,7 +186,7 @@ impl Subscriber {
                 }
                 Ok(Ok(None)) => {
                     debug!("Room {} not found", room_id);
-                    *room_state = RoomState::None;
+                    s.room_state = RoomState::None;
                     ctx.notify(ErrorMessage(String::from("Room not found")));
                 }
                 Ok(Err(err)) => {
@@ -196,7 +194,7 @@ impl Subscriber {
                         "Subscriber {} failed to join room {}: {:?}",
                         s.remote_addr, room_id, err
                     );
-                    *room_state = RoomState::None;
+                    s.room_state = RoomState::None;
                     ctx.notify(ErrorMessage(String::from("Failed to join room")));
                 }
                 Err(err) => {
@@ -204,7 +202,7 @@ impl Subscriber {
                         "Subscriber {} failed to join room {}: {:?}",
                         s.remote_addr, room_id, err
                     );
-                    *room_state = RoomState::None;
+                    s.room_state = RoomState::None;
                     ctx.notify(ErrorMessage(String::from("Failed to join room")));
                 }
             }
@@ -280,8 +278,7 @@ impl Subscriber {
 
                 // Check if we can join a room currently.
                 {
-                    let mut room_state = self.room.lock().unwrap();
-                    match &*room_state {
+                    match &self.room_state {
                         RoomState::Joining => {
                             ctx.notify(ErrorMessage(String::from("Already joining a room")));
 
@@ -293,7 +290,7 @@ impl Subscriber {
                             return;
                         }
                         _ => {
-                            *room_state = RoomState::Joining;
+                            self.room_state = RoomState::Joining;
                         }
                     }
                 }
@@ -335,8 +332,7 @@ impl Subscriber {
                 };
 
                 {
-                    let room_state = self.room.lock().unwrap();
-                    match &*room_state {
+                    match &self.room_state {
                         RoomState::None | RoomState::Joining => {
                             error!("No room joined yet");
                             ctx.notify(ErrorMessage(String::from("No room joined yet")));
@@ -373,8 +369,7 @@ impl Subscriber {
 
         let _ = self.pipeline.set_state(gst::State::Null);
 
-        if let RoomState::Joined(ref room, _) =
-            mem::replace(&mut *self.room.lock().unwrap(), RoomState::None)
+        if let RoomState::Joined(ref room, _) = mem::replace(&mut self.room_state, RoomState::None)
         {
             if let Some(room) = room.upgrade() {
                 room.do_send(crate::rooms::LeaveRoomMessage {

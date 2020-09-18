@@ -51,7 +51,7 @@ pub struct Publisher {
     cfg: Arc<Config>,
     rooms: WeakAddr<Rooms>,
     remote_addr: String,
-    room: Mutex<RoomState>,
+    room_state: RoomState,
 
     pipeline: gst::Pipeline,
     webrtcbin: gst::Element,
@@ -115,7 +115,7 @@ impl Publisher {
             cfg,
             rooms: rooms.downgrade(),
             remote_addr: String::from(remote_addr),
-            room: Mutex::new(RoomState::None),
+            room_state: RoomState::None,
 
             pipeline,
             webrtcbin,
@@ -142,16 +142,14 @@ impl Publisher {
             })
             .into_actor(self)
             .then(move |res, s, ctx| {
-                let mut room_state = s.room.lock().unwrap();
-
                 // Check if room creation was successful
                 match res {
                     Ok(Ok((room, room_id))) => {
                         debug!("Created room {:?} with id {}", room, room_id);
 
-                        match &*room_state {
+                        match s.room_state {
                             RoomState::Joining => {
-                                *room_state = RoomState::Joined(room.downgrade(), room_id);
+                                s.room_state = RoomState::Joined(room.downgrade(), room_id);
 
                                 ctx.text(
                                     serde_json::to_string(&ServerMessage::RoomCreated {
@@ -176,11 +174,11 @@ impl Publisher {
                     }
                     Ok(Err(err)) => {
                         error!("Failed to create room {:?}", err);
-                        *room_state = RoomState::None;
+                        s.room_state = RoomState::None;
                         ctx.notify(ErrorMessage(String::from("Failed to create room")));
                     }
                     Err(err) => {
-                        *room_state = RoomState::None;
+                        s.room_state = RoomState::None;
                         error!("Failed to create room {:?}", err);
                         ctx.notify(ErrorMessage(String::from("Failed to create room")));
                     }
@@ -285,8 +283,7 @@ impl Publisher {
 
                 // Check if we can join a room currently.
                 {
-                    let mut room_state = self.room.lock().unwrap();
-                    match &*room_state {
+                    match &self.room_state {
                         RoomState::Joining => {
                             ctx.notify(ErrorMessage(String::from("Already joining a room")));
 
@@ -298,7 +295,7 @@ impl Publisher {
                             return;
                         }
                         _ => {
-                            *room_state = RoomState::Joining;
+                            self.room_state = RoomState::Joining;
                         }
                     }
                 }
@@ -340,8 +337,7 @@ impl Publisher {
                 };
 
                 {
-                    let room_state = self.room.lock().unwrap();
-                    match &*room_state {
+                    match &self.room_state {
                         RoomState::None | RoomState::Joining => {
                             error!("No room created yet");
                             ctx.notify(ErrorMessage(String::from("No room created yet")));
@@ -371,8 +367,7 @@ impl Publisher {
 
         let _ = self.pipeline.set_state(gst::State::Null);
 
-        if let RoomState::Joined(ref room, _) =
-            mem::replace(&mut *self.room.lock().unwrap(), RoomState::None)
+        if let RoomState::Joined(ref room, _) = mem::replace(&mut self.room_state, RoomState::None)
         {
             if let Some(room) = room.upgrade() {
                 room.do_send(crate::rooms::DeleteRoomMessage {
