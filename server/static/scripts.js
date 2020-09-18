@@ -89,7 +89,6 @@ function updateRooms() {
             });
 
             if (playing_room && !found_playing_room) {
-                console.debug('playing room disappeared');
                 pauseRoom();
             }
 
@@ -104,7 +103,6 @@ function playRoom(id) {
     if (playing_room != null && playing_room != id) {
         pauseRoom();
     }
-    console.debug('playing ' + id);
 
     playing_room = id;
     connectWebsocket();
@@ -120,8 +118,6 @@ function pauseRoom() {
     if (playing_room == null) {
         return;
     }
-
-    console.debug('pausing ' + playing_room);
 
     audio_player.srcObject = null;
 
