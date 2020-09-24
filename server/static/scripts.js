@@ -22,8 +22,11 @@ function onLoad() {
 }
 
 function updateRooms() {
+    // Configure a different API URL here if desired
+    const api_url = '/api/rooms';
+
     var request = new XMLHttpRequest();
-    request.open('GET', '/api/rooms', true);
+    request.open('GET', api_url, true);
     request.onload = function () {
         if (request.status >= 200 && request.status < 400) {
             var rooms = JSON.parse(this.response);
@@ -140,19 +143,29 @@ function pauseRoom() {
     playing_room = null;
 }
 
-function connectWebsocket() {
+function getWebSocketUrl() {
     var scheme;
+    var port;
+
+    // Configure a different WebSocket server here if desired
 
     if (window.location.protocol == 'https:') {
         scheme = 'wss:';
+        port = 443;
     } else if (window.location.protocol == 'http:') {
         scheme = 'ws:';
+        port = 80;
     }
+
     const server = window.location.hostname;
-    const port = window.location.port || 80;
+    port = window.location.port || port;
     const ws_url = scheme + '//' + server + ':' + port + '/ws/subscribe';
 
-    const ws = new WebSocket(ws_url);
+    return ws_url;
+}
+
+function connectWebsocket() {
+    const ws = new WebSocket(getWebSocketUrl());
 
     ws.addEventListener('open', (event) => onServerOpen(ws, event));
     ws.addEventListener('error', (event) => onServerError(ws, event));
@@ -167,8 +180,6 @@ function onServerOpen(ws, event) {
     if (playing_room == null || ws != websocket) {
         return;
     }
-
-    console.log('Opened');
 
     // Now join the room, at this point we will start getting messages
     websocket.send(JSON.stringify({
