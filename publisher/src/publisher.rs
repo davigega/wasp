@@ -369,22 +369,129 @@ impl Publisher {
         Ok(ws)
     }
 
-    /// Create the pipeline and set up notifications.
-    fn new(
-        cfg: &Config,
-        event_sender: mpsc::UnboundedSender<PublisherEvent>,
-        websocket_sender: mpsc::UnboundedSender<PublisherMessage>,
-    ) -> Result<gst::Pipeline, Error> {
-        // Create the GStreamer pipeline
-        let pipeline = gst::parse_launch(
-            "audiotestsrc is-live=true ! opusenc ! rtpopuspay pt=96 ! webrtcbin name=webrtcbin",
-        )?
-        .downcast::<gst::Pipeline>()
-        .expect("Not a pipeline");
+    fn build_pipeline(cfg: &Config) -> Result<(gst::Pipeline, gst::Element), Error> {
+        let pipeline = gst::Pipeline::new(None);
+        let webrtcbin = gst::ElementFactory::make("webrtcbin", Some("webrtcbin"))
+            .context("Creating webrtcbin")?;
+        let rtpopuspay =
+            gst::ElementFactory::make("rtpopuspay", None).context("Creating rtpopuspay")?;
+        let opusenc = gst::ElementFactory::make("opusenc", None).context("Creating opusenc")?;
+        let capsfilter =
+            gst::ElementFactory::make("capsfilter", None).context("Creating capsfilter")?;
+        let volume = gst::ElementFactory::make("volume", None).context("Creating volume")?;
+        let audioconvert =
+            gst::ElementFactory::make("audioconvert", None).context("Creating audioconvert")?;
+        let audioresample =
+            gst::ElementFactory::make("audioresample", None).context("Creating audioresample")?;
+        let queue = gst::ElementFactory::make("queue", None).context("Creating queue")?;
 
-        let webrtcbin = pipeline
-            .get_by_name("webrtcbin")
-            .expect("Can't find webrtcbin");
+        let source = match cfg
+            .input_stream
+            .splitn(2, ':')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["pulseaudio", device] => {
+                let src =
+                    gst::ElementFactory::make("pulsesrc", None).context("Creating pulsesrc")?;
+                src.set_property(
+                    "device",
+                    &(if *device == "default" {
+                        None::<&str>
+                    } else {
+                        Some(*device)
+                    }),
+                )
+                .expect("Failed to set device property on pulsesrc");
+
+                src
+            }
+            ["jack", client_name] => {
+                let src = gst::ElementFactory::make("jackaudiosrc", None)
+                    .context("Creating jackaudiosrc")?;
+                src.set_property("client-name", client_name)
+                    .expect("Failed to set client-name property on jackaudiosrc");
+                src.set_property_from_str("connect", "none");
+
+                src
+            }
+            ["audiotest", frequency] => {
+                let src = gst::ElementFactory::make("audiotestsrc", None)
+                    .context("Creating audiotestsrc")?;
+
+                let freq = frequency
+                    .parse::<f64>()
+                    .context("Parsing audiotestsrc frequency")?;
+                src.set_property("freq", &freq)
+                    .expect("Failed to set freq property on audiotestsrc");
+                src.set_property("is-live", &true)
+                    .expect("Failed to set is-live property on audiotestsrc");
+
+                src
+            }
+            _ => bail!("Unsupported input stream '{}'", cfg.input_stream),
+        };
+
+        pipeline
+            .add_many(&[
+                &source,
+                &queue,
+                &audioresample,
+                &audioconvert,
+                &volume,
+                &capsfilter,
+                &opusenc,
+                &rtpopuspay,
+                &webrtcbin,
+            ])
+            .expect("Can't add elements to pipeline");
+
+        // This can't really fail: if anything it fails after starting the pipeline
+        gst::Element::link_many(&[
+            &source,
+            &queue,
+            &audioresample,
+            &audioconvert,
+            &volume,
+            &capsfilter,
+            &opusenc,
+            &rtpopuspay,
+            &webrtcbin,
+        ])
+        .expect("Failed to link elements");
+
+        // Now configure all the elements
+        volume
+            .set_property("volume", &cfg.volume)
+            .expect("Failed to set volume property on volume");
+        opusenc
+            .set_property("bitrate", &(cfg.bitrate as i32))
+            .expect("Failed to set bitrate property on opusenc");
+        rtpopuspay
+            .set_property("pt", &96u32)
+            .expect("Failed to set pt property on rtpopuspay");
+
+        let caps = gst::Caps::builder("audio/x-raw")
+            .field("rate", &(cfg.sample_rate as i32))
+            .field(
+                "channels",
+                &(match cfg.channel_configuration {
+                    crate::config::ChannelConfiguration::Mono => 1i32,
+                    crate::config::ChannelConfiguration::Stereo => 2i32,
+                }),
+            )
+            .build();
+        capsfilter
+            .set_property("caps", &caps)
+            .expect("Failed to set caps property on capsfilter");
+
+        queue
+            .set_properties(&[
+                ("max-size-bytes", &0u32),
+                ("max-size-buffers", &0u32),
+                ("max-size-time", &(100 * gst::MSECOND)),
+            ])
+            .expect("Can't set queue properties");
 
         if let Some(ref stun_server) = &cfg.stun_server {
             webrtcbin
@@ -397,6 +504,20 @@ impl Publisher {
                 .expect("Failed to set turn-server property");
         }
         webrtcbin.set_property_from_str("bundle-policy", "max-bundle");
+
+        Ok((pipeline, webrtcbin))
+    }
+
+    /// Create the pipeline and set up notifications.
+    fn new(
+        cfg: &Config,
+        event_sender: mpsc::UnboundedSender<PublisherEvent>,
+        websocket_sender: mpsc::UnboundedSender<PublisherMessage>,
+    ) -> Result<gst::Pipeline, Error> {
+        // Create the GStreamer pipeline
+        let (pipeline, webrtcbin) = Self::build_pipeline(cfg)?;
+
+        // Hook up the various callbacks for webrtcbin and the bus
 
         // Set transceiver as "sendonly". It was added above when linking the pipeline.
         let transceiver = webrtcbin

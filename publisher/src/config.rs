@@ -35,7 +35,7 @@ impl std::str::FromStr for ChannelConfiguration {
     about = "Publish an audio stream via WebRTC."
 )]
 pub struct Config {
-    /// Input stream to record, e.g. pulseaudio:default or jack:default.
+    /// Input stream to record, e.g. pulseaudio:device or jack:node_name.
     #[structopt(short, long)]
     pub input_stream: String,
 
