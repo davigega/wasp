@@ -14,8 +14,6 @@ var playing_room = null;
 // Peer connection if currently playing a room, otherwise null
 var peer_connection = null;
 
-// TODO: exception handling
-
 function onLoad() {
     updateRooms();
     setInterval(updateRooms, 5000);
@@ -29,7 +27,13 @@ function updateRooms() {
     request.open('GET', api_url, true);
     request.onload = function () {
         if (request.status >= 200 && request.status < 400) {
-            var rooms = JSON.parse(this.response);
+            var rooms;
+            try {
+                rooms = JSON.parse(this.response);
+            } catch (e) {
+                console.error('Failed to parse JSON (' + event.data + '): ' + e);
+                return;
+            }
 
             rooms.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -175,7 +179,16 @@ function getWebSocketUrl() {
 }
 
 function connectWebsocket() {
-    const ws = new WebSocket(getWebSocketUrl());
+    var ws;
+
+    const ws_url = getWebSocketUrl();
+    try {
+        ws = new WebSocket(ws_url);
+    } catch (e) {
+        console.error('Failed to create websocket connection to ' + ws_url + ': ' + e);
+        pauseRoom();
+        return;
+    }
 
     ws.addEventListener('open', (event) => onServerOpen(ws, event));
     ws.addEventListener('error', (event) => onServerError(ws, event));
@@ -204,7 +217,12 @@ function onServerOpen(ws, event) {
             return;
         }
 
-        websocket.send(JSON.stringify({'ice': event.candidate }));
+        try {
+            websocket.send(JSON.stringify({'ice': event.candidate }));
+        } catch (e) {
+            console.error('Failed to send WebSocket message: ' + e);
+            pauseRoom();
+        }
     };
 
     peer_connection.ontrack = function(event) {
@@ -218,27 +236,55 @@ function onServerMessage(ws, event) {
         return;
     }
 
-    const msg = JSON.parse(event.data);
+    var msg;
+    try {
+        msg = JSON.parse(event.data);
+    } catch (e) {
+        console.error('Failed to parse JSON (' + event.data + '): ' + e);
+        pauseRoom();
+        return;
+    }
 
     if (msg.sdp != null) {
         if (peer_connection == null) {
             return;
         }
 
-        peer_connection.setRemoteDescription(msg.sdp).then(function() {
-            peer_connection.createAnswer().then(function(sdp) {
-                peer_connection.setLocalDescription(sdp).then(function() {
-                    if (websocket != null) {
-                        websocket.send(JSON.stringify({'sdp': peer_connection.localDescription }));
-                    }
-                });
+        try {
+            peer_connection.setRemoteDescription(msg.sdp).then(function() {
+                try {
+                    peer_connection.createAnswer().then(function(sdp) {
+                        peer_connection.setLocalDescription(sdp).then(function() {
+                            if (websocket != null) {
+                                try {
+                                    websocket.send(JSON.stringify({'sdp': peer_connection.localDescription }));
+                                } catch (e) {
+                                    console.error('Failed to send WebSocket message: ' + e);
+                                    pauseRoom();
+                                }
+                            }
+                        });
+                    });
+                } catch (e) {
+                    console.error('Failed to create answer: ' + e);
+                    pauseRoom();
+                }
             });
-        });
+        } catch (e) {
+            console.error('Failed to set remote description: ' + e);
+            pauseRoom();
+        }
     } else if (msg.ice != null) {
         if (peer_connection == null) {
             return;
         }
-        peer_connection.addIceCandidate(new RTCIceCandidate(msg.ice));
+
+        try {
+            peer_connection.addIceCandidate(new RTCIceCandidate(msg.ice));
+        } catch (e) {
+            console.error('Failed to add ICE candidate: ' + e);
+            pauseRoom();
+        }
     } else if (msg.error != null) {
         console.error('Got error: ' + msg.error.message);
         pauseRoom();
