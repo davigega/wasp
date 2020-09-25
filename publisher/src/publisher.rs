@@ -341,6 +341,7 @@ impl Publisher {
             serde_json::to_string(&PublisherMessage::CreateRoom {
                 name: cfg.server_room.clone(),
                 description: cfg.server_room_description.clone(),
+                latency: Some(cfg.server_latency),
             })
             .expect("Failed to serialize create room message"),
         ))

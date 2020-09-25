@@ -72,4 +72,8 @@ pub struct Config {
     /// Channel configuration to use, can be mono or stereo.
     #[structopt(long, default_value = "mono")]
     pub channel_configuration: ChannelConfiguration,
+
+    /// Server-side latency.
+    #[structopt(long, default_value = "200")]
+    pub server_latency: u32,
 }

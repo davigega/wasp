@@ -11,6 +11,7 @@ pub enum PublisherMessage {
     CreateRoom {
         name: String,
         description: Option<String>,
+        latency: Option<u32>,
     },
     Ice {
         candidate: String,

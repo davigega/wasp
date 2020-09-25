@@ -275,11 +275,19 @@ impl Publisher {
     /// Handle JSON messages from the publisher.
     fn handle_message(&mut self, ctx: &mut ws::WebsocketContext<Self>, text: &str) {
         match serde_json::from_str::<PublisherMessage>(text) {
-            Ok(PublisherMessage::CreateRoom { name, description }) => {
+            Ok(PublisherMessage::CreateRoom {
+                name,
+                description,
+                latency,
+            }) => {
                 debug!(
-                    "Publisher {} asked to create new room {} with description {:?}",
-                    self.remote_addr, name, description
+                    "Publisher {} asked to create new room {} with description {:?} and latency {:?}",
+                    self.remote_addr, name, description, latency,
                 );
+
+                self.webrtcbin
+                    .set_property("latency", &latency.unwrap_or(200))
+                    .expect("Failed to set latency property");
 
                 // Check if we can join a room currently.
                 {
