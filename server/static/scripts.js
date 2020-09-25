@@ -115,6 +115,10 @@ function playRoom(id) {
 
     const play_button = play_row.cells[4].firstChild;
     play_button.textContent = 'Pause';
+
+    const listener_count = play_row.cells[3].firstChild;
+    current_listener_count = parseInt(listener_count.textContent);
+    listener_count.textContent = current_listener_count + 1;
 }
 
 function pauseRoom() {
@@ -139,6 +143,12 @@ function pauseRoom() {
 
     const play_button = play_row.cells[4].firstChild;
     play_button.textContent = 'Play';
+
+    const listener_count = play_row.cells[3].firstChild;
+    current_listener_count = parseInt(listener_count.textContent);
+    if (current_listener_count > 0) {
+        listener_count.textContent = current_listener_count - 1;
+    }
 
     playing_room = null;
 }
