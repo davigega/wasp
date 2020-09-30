@@ -408,13 +408,49 @@ impl Publisher {
                 src
             }
             ["jack", client_name] => {
+                let bin = gst::Bin::new(None);
+
                 let src = gst::ElementFactory::make("jackaudiosrc", None)
                     .context("Creating jackaudiosrc")?;
                 src.set_property("client-name", client_name)
                     .expect("Failed to set client-name property on jackaudiosrc");
                 src.set_property_from_str("connect", "none");
 
-                src
+                let capsfilter =
+                    gst::ElementFactory::make("capsfilter", None).context("Creating capsfilter")?;
+
+                // Workaround for jackaudiosrc negotiating stereo if downstream
+                // has converters before the other capsfilter
+                let caps = gst::Caps::builder("audio/x-raw")
+                    .field(
+                        "channels",
+                        &(match cfg.channel_configuration {
+                            crate::config::ChannelConfiguration::Mono => 1i32,
+                            crate::config::ChannelConfiguration::Stereo => 2i32,
+                        }),
+                    )
+                    .build();
+                capsfilter
+                    .set_property("caps", &caps)
+                    .expect("Failed to set caps property on capsfilter");
+
+                bin.add_many(&[&src, &capsfilter])
+                    .expect("Failed to add elements to jackaudiosrc bin");
+                src.link(&capsfilter)
+                    .expect("Failed to link jackaudiosrc to capsfilter");
+
+                bin.add_pad(
+                    &gst::GhostPad::with_target(
+                        Some("src"),
+                        &capsfilter
+                            .get_static_pad("src")
+                            .expect("No src pad in capsfilter"),
+                    )
+                    .expect("Failed to create ghost pad"),
+                )
+                .expect("Failed to add ghost pad to jackaudiosrc bin");
+
+                bin.upcast()
             }
             ["audiotest", frequency] => {
                 let src = gst::ElementFactory::make("audiotestsrc", None)
