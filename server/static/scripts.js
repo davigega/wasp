@@ -253,8 +253,19 @@ function onServerMessage(ws, event) {
         try {
             peer_connection.setRemoteDescription(msg.sdp).then(function() {
                 try {
-                    peer_connection.createAnswer().then(function(sdp) {
-                        peer_connection.setLocalDescription(sdp).then(function() {
+                    peer_connection.createAnswer().then(function(desc) {
+                        // FIXME: Work around Chrome not handling stereo Opus correctly.
+                        // See
+                        //   https://chromium.googlesource.com/external/webrtc/+/194e3bcc53ffa3e98045934377726cb25d7579d2/webrtc/media/engine/webrtcvoiceengine.cc#302
+                        //   https://bugs.chromium.org/p/webrtc/issues/detail?id=8133
+                        //
+                        // Technically it's against the spec to modify the SDP
+                        // but there's no other API for this and this seems to
+                        // be the only possible workaround at this time.
+                        if (msg.sdp.sdp.includes('sprop-stereo=1')) {
+                            desc.sdp = desc.sdp.replace('a=fmtp:96 ', 'a=fmtp:96 stereo=1;');
+                        }
+                        peer_connection.setLocalDescription(desc).then(function() {
                             if (websocket != null) {
                                 try {
                                     websocket.send(JSON.stringify({'sdp': peer_connection.localDescription }));
