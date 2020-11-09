@@ -85,7 +85,10 @@ pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
     let cfg_clone = cfg.clone();
 
     let server = HttpServer::new(move || {
+        let cors = actix_cors::Cors::default().allow_any_origin().max_age(3600);
+
         App::new()
+            .wrap(cors)
             .app_data(cfg_clone.clone())
             .app_data(rooms.clone())
             .route("/", web::get().to(index))
