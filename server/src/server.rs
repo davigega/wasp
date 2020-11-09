@@ -88,6 +88,7 @@ pub async fn run(cfg: Config) -> Result<(), anyhow::Error> {
         let cors = actix_cors::Cors::default().allow_any_origin().max_age(3600);
 
         App::new()
+            .wrap(actix_web::middleware::Logger::default())
             .wrap(cors)
             .app_data(cfg_clone.clone())
             .app_data(rooms.clone())
