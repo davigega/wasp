@@ -324,6 +324,17 @@ impl Subscriber {
                     "Subscriber {} sent ICE candidate {} at mline index {}",
                     self.remote_addr, candidate, sdp_mline_index
                 );
+
+                // Filter out MDNS local candidates. They're useless most of the time and seem to
+                // delay Firefox/Chrome when trying to resolve them
+                let split_candidate = candidate.splitn(7, ' ').collect::<Vec<_>>();
+                if let Some(dest) = split_candidate.get(4) {
+                    if dest.ends_with(".local") {
+                        debug!("Skipping MDNS local candidate");
+                        return;
+                    }
+                }
+
                 self.webrtcbin
                     .emit("add-ice-candidate", &[&sdp_mline_index, &candidate])
                     .unwrap();
@@ -429,6 +440,16 @@ impl Actor for Subscriber {
                 let _webrtc = args[0].get::<gst::Element>().expect("Invalid argument");
                 let sdp_mline_index = args[1].get_some::<u32>().expect("Invalid argument");
                 let candidate = args[2].get::<String>().expect("Invalid argument").unwrap();
+
+                // Filter out MDNS local candidates. They're useless most of the time and seem to
+                // delay Firefox/Chrome when trying to resolve them
+                let split_candidate = candidate.splitn(7, ' ').collect::<Vec<_>>();
+                if let Some(dest) = split_candidate.get(4) {
+                    if dest.ends_with(".local") {
+                        debug!("Skipping MDNS local candidate");
+                        return None;
+                    }
+                }
 
                 if let Some(addr) = addr.upgrade() {
                     addr.do_send(ICECandidateMessage {
