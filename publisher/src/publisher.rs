@@ -407,6 +407,21 @@ impl Publisher {
 
                 src
             }
+            ["osx", device] => {
+                let src = gst::ElementFactory::make("osxaudiosrc", None)
+                    .context("Creating osxconnection")?;
+                src.set_property(
+                    "device",
+                    &(if *device == "default" {
+                        0
+                    } else {
+                        device.parse::<i32>().context("Failed to parse device id")?
+                    }),
+                )
+                .expect("Failed to set device property on osxaudiosrc");
+
+                src
+            }
             ["jack", client_name] => {
                 let bin = gst::Bin::new(None);
 
