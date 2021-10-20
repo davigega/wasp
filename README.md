@@ -1,9 +1,6 @@
 # WASP - WebRTC Audio Streaming Publisher
 
-WASP is an audio steraming application which allows you to stream audio from any audio application running through [JACK](https://jackaudio.org/)  directly into a webpage.
-
-This repository contains an application to publish [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) and
-[JACK](https://jackaudio.org/) streams via [WebRTC](https://webrtc.org/) to a "room" on a server, which is the distributed
+WASP is an audio streaming application which allows you to publish [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) and [JACK](https://jackaudio.org/) streams via [WebRTC](https://webrtc.org/) to a "room" on a server, which is the distributed
 to one or more browser clients via [WebRTC](https://webrtc.org/).
 
 The server application can be found in the [server](server) directory, the publisher application in the [publisher](publisher)
